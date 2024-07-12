@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -22,7 +24,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("vehiQuest");
     const userCollection = db.collection("users");
@@ -163,12 +165,6 @@ async function run() {
       res.send(result);
     });
 
-    // category related api
-    // app.get("/categories", async (req, res) => {
-    //   const result = await categoriesCollection.find().toArray();
-    //   res.send(result);
-    // });
-
     // products related api
     app.patch("/carData/advertise/:id", async (req, res) => {
       const id = req.params.id;
@@ -238,11 +234,31 @@ async function run() {
       res.send(buyers);
     });
 
+    app.post("/create-payment-intent", async (req, res) => {
+      const booking = req.body;
+      const priceString = booking.price;
+      console.log("Price String:", priceString);
+      // Remove the currency symbol and convert the string to a number
+      const price = parseFloat(priceString.replace(/[^0-9.-]+/g, ""));
+      const amount = Math.round(price * 100);
+
+      // console.log("Parsed Price:", price);
+      // console.log("Amount (in cents):", amount);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
+
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
